@@ -11,6 +11,11 @@ services:
   backend:
     build: ./backend
     restart: unless-stopped
+    # Keep the backend internal-only. No SERVICE_FQDN magic var and an explicit
+    # traefik.enable=false stop Coolify's proxy from assigning it a public
+    # domain — the frontend's nginx reaches it over the private vault-net.
+    labels:
+      - traefik.enable=false
     environment:
       PORT: 3000
       # Set this to your master password so the cron runs automatically
