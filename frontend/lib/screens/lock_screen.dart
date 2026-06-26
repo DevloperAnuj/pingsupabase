@@ -11,9 +11,6 @@ class LockScreen extends StatefulWidget {
 }
 
 class _LockScreenState extends State<LockScreen> {
-  // Blank = same-origin (proxied to the backend by nginx). The bundled deploy
-  // needs no URL here; only fill it in if the backend lives on another host.
-  final _urlController = TextEditingController(text: '');
   final _pwController = TextEditingController();
   bool _loading = false;
   bool _obscure = true;
@@ -24,20 +21,14 @@ class _LockScreenState extends State<LockScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSavedUrl();
+    _checkHealth();
   }
 
-  Future<void> _loadSavedUrl() async {
-    final saved = await ApiService.getBackendUrl();
-    if (saved != null) _urlController.text = saved;
-    // Health-check on load for both a saved URL and the blank same-origin case.
-    await _checkHealth(_urlController.text.trim());
-  }
-
-  Future<void> _checkHealth(String url) async {
+  // The backend is same-origin (nginx proxies /api/), so we just probe health
+  // on load to learn whether a vault already exists.
+  Future<void> _checkHealth() async {
     setState(() { _checkingHealth = true; _error = null; });
     try {
-      await ApiService.setBackendUrl(url);
       final h = await ApiService.health();
       setState(() {
         _vaultExists = h['vaultExists'] == true;
@@ -45,7 +36,7 @@ class _LockScreenState extends State<LockScreen> {
       });
     } catch (e) {
       setState(() {
-        _error = 'Cannot reach backend at $url';
+        _error = 'Cannot reach backend';
         _checkingHealth = false;
       });
     }
@@ -88,31 +79,6 @@ class _LockScreenState extends State<LockScreen> {
               ),
               const SizedBox(height: 40),
 
-              // Backend URL
-              Text('Backend URL', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13, fontWeight: FontWeight.w500)),
-              const SizedBox(height: 6),
-              Row(children: [
-                Expanded(child: TextField(
-                  controller: _urlController,
-                  style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14),
-                  decoration: const InputDecoration(hintText: 'Leave blank — same server (recommended)'),
-                )),
-                const SizedBox(width: 10),
-                ElevatedButton(
-                  onPressed: _checkingHealth ? null : () => _checkHealth(_urlController.text.trim()),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.surfaceCard,
-                    foregroundColor: AppTheme.textPrimary,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  ),
-                  child: _checkingHealth
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Connect'),
-                ),
-              ]),
-
-              const SizedBox(height: 20),
-
               // Master password
               Text('Master password', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13, fontWeight: FontWeight.w500)),
               const SizedBox(height: 6),
@@ -147,8 +113,8 @@ class _LockScreenState extends State<LockScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _loading ? null : _unlock,
-                  child: _loading
+                  onPressed: (_loading || _checkingHealth) ? null : _unlock,
+                  child: (_loading || _checkingHealth)
                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                       : Text(_vaultExists ? 'Unlock vault' : 'Create vault', style: const TextStyle(fontSize: 15)),
                 ),

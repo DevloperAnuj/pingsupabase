@@ -1,27 +1,14 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
   static String? _password;
 
-  static Future<String> get baseUrl async {
-    final prefs = await SharedPreferences.getInstance();
-    // Empty string => same-origin: requests hit /api/... on the page's own
-    // host and nginx proxies them to the backend container. This is the
-    // default for the bundled Coolify deploy (backend is not publicly exposed).
-    return prefs.getString('backend_url') ?? '';
-  }
-
-  static Future<void> setBackendUrl(String url) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('backend_url', url.replaceAll(RegExp(r'/$'), ''));
-  }
-
-  static Future<String?> getBackendUrl() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('backend_url');
-  }
+  // The web app is always served from the same origin as the backend:
+  // nginx proxies /api/ to the backend container. So API calls use a
+  // relative base ('') and resolve against the page's own host. There is
+  // no configurable backend URL.
+  static Future<String> get baseUrl async => '';
 
   static Map<String, String> get _headers => {
     'Content-Type': 'application/json',
