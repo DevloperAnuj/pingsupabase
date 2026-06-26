@@ -3,17 +3,21 @@
 # Port handling: NO host ports are published here. Coolify's Traefik proxy
 # routes a domain to the `frontend` service via the SERVICE_FQDN_FRONTEND_80
 # magic variable below, so there is nothing to conflict with other apps.
-# The `backend` is internal-only (never publicly exposed) — the frontend's
-# nginx proxies /api/ to it over the private network.
+#
+# Networking is left to Coolify: it places both services on the project
+# network (so the frontend's nginx still reaches `backend` by name) AND
+# attaches the public-facing frontend to its Traefik proxy network. We do
+# NOT define a custom network here — doing so kept the frontend off the
+# proxy network and made Traefik return 503/504.
 
 services:
 
   backend:
     build: ./backend
     restart: unless-stopped
-    # Keep the backend internal-only. No SERVICE_FQDN magic var and an explicit
-    # traefik.enable=false stop Coolify's proxy from assigning it a public
-    # domain — the frontend's nginx reaches it over the private vault-net.
+    # Keep the backend internal-only: traefik.enable=false stops Coolify's
+    # proxy from assigning it a public domain. nginx reaches it by service
+    # name (backend:3000) over the project network.
     labels:
       - traefik.enable=false
     environment:
@@ -27,27 +31,18 @@ services:
       - vault_data:/app/data
     expose:
       - "3000"
-    networks:
-      - vault-net
 
   frontend:
     build: ./frontend
     restart: unless-stopped
     environment:
-      # Coolify magic variable: generates a domain and wires up Traefik to
-      # route it to this service's port 80. No host port binding = no clashes.
-      # Override the generated domain in the Coolify UI if you want a custom one.
+      # Coolify magic variable: generates a domain (or uses the one you set
+      # in the UI) and wires up Traefik to route it to this service's port 80.
       - SERVICE_FQDN_FRONTEND_80
     expose:
       - "80"
     depends_on:
       - backend
-    networks:
-      - vault-net
 
 volumes:
   vault_data:
-
-networks:
-  vault-net:
-    driver: bridge
