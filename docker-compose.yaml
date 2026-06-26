@@ -1,0 +1,48 @@
+# Supabase Vault — Coolify deployment
+#
+# Port handling: NO host ports are published here. Coolify's Traefik proxy
+# routes a domain to the `frontend` service via the SERVICE_FQDN_FRONTEND_80
+# magic variable below, so there is nothing to conflict with other apps.
+# The `backend` is internal-only (never publicly exposed) — the frontend's
+# nginx proxies /api/ to it over the private network.
+
+services:
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      # Set this to your master password so the cron runs automatically
+      # even after a server restart (without needing to unlock the UI first).
+      # Leave blank if you prefer to unlock manually each session.
+      MASTER_PASSWORD: ${MASTER_PASSWORD:-}
+    volumes:
+      # Persist vault data across container rebuilds
+      - vault_data:/app/data
+    expose:
+      - "3000"
+    networks:
+      - vault-net
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    environment:
+      # Coolify magic variable: generates a domain and wires up Traefik to
+      # route it to this service's port 80. No host port binding = no clashes.
+      # Override the generated domain in the Coolify UI if you want a custom one.
+      - SERVICE_FQDN_FRONTEND_80
+    expose:
+      - "80"
+    depends_on:
+      - backend
+    networks:
+      - vault-net
+
+volumes:
+  vault_data:
+
+networks:
+  vault-net:
+    driver: bridge
